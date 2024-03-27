@@ -33,6 +33,9 @@ mutation CreateCheckout($variantId: ID!) {
 				id
 				name
 			}
+			shippingMethods {
+				id
+			}
 		}
 		errors {
 			field

@@ -1,6 +1,10 @@
 import Image from "next/image";
 import { notFound, redirect } from "next/navigation";
-import { CreateCheckoutDocument, ProductListDocument } from "@/generated/graphql";
+import {
+	CheckoutDeliveryMethodUpdateDocument,
+	CreateCheckoutDocument,
+	ProductListDocument,
+} from "@/generated/graphql";
 import { formatMoney, executeGraphQL } from "@/lib/common";
 import { cookies } from "next/headers";
 
@@ -13,19 +17,17 @@ export default async function Page() {
 		query: ProductListDocument,
 	});
 
-	const product = data.products?.edges.find((p) => p.node.productType.isShippingRequired === false)?.node;
+	const product = data.products?.edges.find((p) => p.node.productType.isShippingRequired === true)?.node;
 
 	if (!product?.defaultVariant) {
 		notFound();
 	}
 	const variant = product.defaultVariant;
 
-	console.log(variant);
-
 	async function addToCart() {
 		"use server";
 
-		const response = await executeGraphQL({
+		const createCheckoutResponse = await executeGraphQL({
 			query: CreateCheckoutDocument,
 			variables: {
 				variantId: variant.id,
@@ -33,12 +35,28 @@ export default async function Page() {
 			cache: "no-store",
 		});
 
-		if (!response.checkoutCreate?.checkout?.id) {
-			console.log(response.checkoutCreate?.errors);
-			throw new Error("Failed to create checkout", { cause: response.checkoutCreate?.errors });
+		if (!createCheckoutResponse.checkoutCreate?.checkout?.id) {
+			console.log(createCheckoutResponse.checkoutCreate?.errors);
+			throw new Error("Failed to create checkout", { cause: createCheckoutResponse.checkoutCreate?.errors });
 		}
 
-		cookies().set("checkoutId", response.checkoutCreate.checkout.id);
+		if (createCheckoutResponse.checkoutCreate.checkout.shippingMethods.length) {
+			const deliveryResponse = await executeGraphQL({
+				query: CheckoutDeliveryMethodUpdateDocument,
+				variables: {
+					checkoutId: createCheckoutResponse.checkoutCreate.checkout.id,
+					shippingMethodId: createCheckoutResponse.checkoutCreate.checkout.shippingMethods[0].id,
+				},
+			});
+			if (deliveryResponse.checkoutDeliveryMethodUpdate?.errors.length) {
+				console.log(deliveryResponse.checkoutDeliveryMethodUpdate.errors);
+				throw new Error("Failed to update delivery method", {
+					cause: deliveryResponse.checkoutDeliveryMethodUpdate.errors,
+				});
+			}
+		}
+
+		cookies().set("checkoutId", createCheckoutResponse.checkoutCreate.checkout.id);
 		redirect("/app-router/cart");
 	}
 
