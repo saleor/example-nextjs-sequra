@@ -1,5 +1,9 @@
 # Sequra Next.js Example
 
+> [!WARNING]
+> This repository is not longer maintained - go to https://github.com/saleor/examples for Saleor examples
+
+
 ## Prerequisites
 
 - Node.js 20
